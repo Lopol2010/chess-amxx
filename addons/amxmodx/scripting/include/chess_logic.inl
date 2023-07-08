@@ -52,7 +52,8 @@ get_king_id(boardIndex, color) {
     for(new i = 0; i < sizeof g_PiecesList[]; i++) 
         if(get(i, Rank) == King && get(i, Color) == color) 
             return i;
-    log_amx("ERROR: id not found in get_king_id")
+    log_amx("ERROR: id not found in get_king_id");
+    return -1;
 }
 // get_opposite_color(color) return color == White ? Black : White;
 // is_contain_move(Array:array, MoveStruct:move) {
@@ -167,17 +168,17 @@ do_move(boardIndex, from_x, from_y, to_x, to_y) {
     // client_print(0, print_chat, "after crtmove MovingPieceID %d", move[MovingPieceID]);
 
     // additional validation (king check)
-    print_board(boardIndex);
+    // print_board(boardIndex);
     new color = get(movingPieceId, Color);
     do_move_unvalidated(boardIndex, movingPieceId, from_x, from_y, to_x, to_y, move);
-    print_board(boardIndex);
+    // print_board(boardIndex);
     if(is_king_checked(boardIndex, color)) {
         undo_last_move(boardIndex);
         client_print(0, print_chat, "king checked color %d", color);
-        print_board(boardIndex);
+        // print_board(boardIndex);
         return false;
     }
-    print_board(boardIndex);
+    // print_board(boardIndex);
 
     return true;
 }
@@ -275,8 +276,7 @@ undo_last_move(boardIndex) {
     new deletedMove[MoveStruct];
     new newLastMove[MoveStruct];
     history_pop(boardIndex, deletedMove);
-    console_print(0, "movingPieceId: %d, deletedMove[OTHERpiecID] %d", deletedMove[MovingPieceID], deletedMove[OtherPieceID]);
-    // TODO: this fails at 1st deletedMove...
+    // TODO: this fails at 1st deletedMove... (maybe fixed)
     new isHistoryEmpty = is_history_empty(boardIndex);
     if(!isHistoryEmpty)
         history_get_last(boardIndex, newLastMove);
@@ -288,10 +288,10 @@ undo_move(boardIndex, deletedMove[MoveStruct], newLastMove[MoveStruct], hasNewLa
     new to_x = deletedMove[EndRow], to_y = deletedMove[EndColumn];
 
     new movingPieceId = deletedMove[MovingPieceID];
-    print_piece(boardIndex, movingPieceId);
-    server_print("undo_move called");
+    // print_piece(boardIndex, movingPieceId);
 
-    // TODO: promote, castling, capture, deletedMove, vzyatie na prohode...
+    // server_print("undo_move called");
+
     switch(deletedMove[MoveType]) {
         case Move: {
             set_matrix(to_x, to_y, InvalidID)
@@ -336,8 +336,6 @@ undo_move(boardIndex, deletedMove[MoveStruct], newLastMove[MoveStruct], hasNewLa
             set_matrix(cx, cy, capturedPieceIndex);
         }
         case Castling: {
-            new rx = deletedMove[Row2];
-            new ry = deletedMove[Column2];
             new rookId = deletedMove[OtherPieceID];
             set_matrix(from_x, from_x, movingPieceId);
             set_matrix(to_x, to_x, rookId);
@@ -387,7 +385,7 @@ undo_move(boardIndex, deletedMove[MoveStruct], newLastMove[MoveStruct], hasNewLa
 }
 
 bool:is_valid_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) {
-    server_print("is_valid_move called");
+    // server_print("is_valid_move called");
     if(!is_square_exist(from_x, from_y) 
         || !is_square_exist(to_x, to_y)
         || is_square_empty(from_x, from_y)
@@ -396,11 +394,11 @@ bool:is_valid_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) {
         || is_castling(boardIndex, movingPieceId, from_x, from_y, to_x, to_y)
         && !is_valid_castling(boardIndex, movingPieceId, from_x, from_y, to_x, to_y)
     ) {
-        server_print("is_valid_move: false");
+        // server_print("is_valid_move: false");
         return false;
     }
 
-    server_print("is_valid_move: true");
+    // server_print("is_valid_move: true");
     return true;
 }
 
@@ -411,11 +409,11 @@ bool:is_castling(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) {
         && is_ally_at(to_x, to_y, get_at(from_x, from_y, Color))
         && get_at(to_x, to_y, Rank) == Rook
     ) { 
-        server_print("is_castling: true");
+        // server_print("is_castling: true");
         return true; 
     }
 
-    server_print("is_castling: false");
+    // server_print("is_castling: false");
     return false;
 }
 
@@ -441,7 +439,7 @@ bool:is_valid_castling(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) {
             }
         }
     }
-    server_print("is_valid_castling returns: %b", isCastling);
+    // server_print("is_valid_castling returns: %b", isCastling);
     return isCastling;
 }
 
@@ -455,18 +453,15 @@ bool:is_king_checked(boardIndex, color) {
 
 bool:is_square_under_attack(boardIndex, kx, ky, color) {
     {
-        server_print("is_square_under_attack called");
+        // server_print("is_square_under_attack called");
         for(new i = -1; i <= 1; i++) {
             for(new j = -1; j <= 1; j++) {
                 new x = kx+i;
                 new y = ky+j;
-                // console_print(0, "kat %d %d, csqr %d %d diagonal ", kx, ky, x, y);
 
-                // console_print(0, "exists %b x %d y %d protected ", is_square_exist(x, y), x, y);
                 if(is_square_exist(x, y) 
                    && is_opponent_at(x, y, color)
                    && get_at(x, y, Rank) == King) {
-                        console_print(0, "CHECK AT ^^");
                         return true;
                 }
             }
@@ -485,18 +480,15 @@ bool:is_square_under_attack(boardIndex, kx, ky, color) {
         offsets = dirs;
         new diagonalIndex = 0;
         new bool:is_protected[4];
-        // console_print(0, "is bishops check king?");
         for(new i = 0; i < 28; i++) {
             diagonalIndex = i % 4;
             new x = kx+offsets[diagonalIndex][0];
             new y = ky+offsets[diagonalIndex][1];
-            // console_print(0, "kat %d %d, csqr %d %d", kx, ky, x, y);
 
             offsets[diagonalIndex][0] += dirs[diagonalIndex][0];
             offsets[diagonalIndex][1] += dirs[diagonalIndex][1];
 
             // diagonal is protected
-            // console_print(0, "exists %b x %d y %d protected %d", is_square_exist(x, y), x, y, is_protected[diagonalIndex]);
             if(is_protected[diagonalIndex]) continue;
             if(!is_square_exist(x, y) 
             || is_ally_at(x, y, color)
@@ -507,16 +499,13 @@ bool:is_square_under_attack(boardIndex, kx, ky, color) {
                         && get_at(x, y, Rank) != Bishop
                         && get_at(x, y, Rank) != Pawn)))) {
                 is_protected[diagonalIndex] = true;
-                // console_print(0, "PROTECTED PAWWWWWWWWWWWWWWNNNNNN^^");
                 continue;
             }
 
-            // console_print(0, "PAWWWWWWWWWWWWWWNNNNNN^^");
             if(is_opponent_at(x, y, color)) {
 
                 if( get_at(x, y, Rank) == Bishop 
                     || get_at(x, y, Rank) == Queen) {
-                    console_print(0, "CHECK AT ^^");
                     return true;
                 }
 
@@ -524,7 +513,6 @@ bool:is_square_under_attack(boardIndex, kx, ky, color) {
                     // new pawnDir = color == White ? 1 : -1;
                     if(color == White && dirs[diagonalIndex][1] == 1
                     || color == Black && dirs[diagonalIndex][1] == -1) {
-                        console_print(0, "CHECK AT ^^");
                         return true;
                     }
                 }
@@ -544,18 +532,15 @@ bool:is_square_under_attack(boardIndex, kx, ky, color) {
         offsets = dirs;
         new diagonalIndex = 0;
         new is_protected[4];
-        // console_print(0, "is rook check king?");
         for(new i = 0; i < 28; i++) {
             diagonalIndex = i % 4;
             new x = kx+offsets[diagonalIndex][0];
             new y = ky+offsets[diagonalIndex][1];
-            // console_print(0, "kat %d %d, csqr %d %d diagonal %d", kx, ky, x, y, diagonalIndex);
 
             offsets[diagonalIndex][0] += dirs[diagonalIndex][0];
             offsets[diagonalIndex][1] += dirs[diagonalIndex][1];
 
             // diagonal is protected
-            // console_print(0, "exists %b x %d y %d protected %d", is_square_exist(x, y), x, y, is_protected[diagonalIndex]);
             if(is_protected[diagonalIndex]) continue;
             if(!is_square_exist(x, y) 
             || is_ally_at(x, y, color)
@@ -563,7 +548,6 @@ bool:is_square_under_attack(boardIndex, kx, ky, color) {
                 && (get_at(x, y, Rank) != Queen
                     && get_at(x, y, Rank) != Rook))) {
                 is_protected[diagonalIndex] = true;
-                // console_print(0, "protected");
                 continue;
             }
 
@@ -571,7 +555,6 @@ bool:is_square_under_attack(boardIndex, kx, ky, color) {
 
                 if( get_at(x, y, Rank) == Rook 
                     || get_at(x, y, Rank) == Queen) {
-                    console_print(0, "CHECK AT ^^");
                     return true;
                 }
             }
@@ -594,46 +577,41 @@ bool:is_square_under_attack(boardIndex, kx, ky, color) {
         offsets = dirs;
         new diagonalIndex = 0;
         new is_protected[8];
-        // console_print(0, "is knight check king?");
         for(new i = 0; i < 8; i++) {
             diagonalIndex = i % 8;
             new x = kx+offsets[diagonalIndex][0];
             new y = ky+offsets[diagonalIndex][1];
-            // console_print(0, "kat %d %d, csqr %d %d diagonal %d", kx, ky, x, y, diagonalIndex);
 
             offsets[diagonalIndex][0] += dirs[diagonalIndex][0];
             offsets[diagonalIndex][1] += dirs[diagonalIndex][1];
 
             // diagonal is protected
-            // console_print(0, "exists %b x %d y %d protected %d", is_square_exist(x, y), x, y, is_protected[diagonalIndex]);
             if(is_protected[diagonalIndex]) continue;
             if(!is_square_exist(x, y) 
             || is_ally_at(x, y, color)
             || (is_opponent_at(x, y, color) 
                 && get_at(x, y, Rank) != Knight)) {
                 is_protected[diagonalIndex] = true;
-                // console_print(0, "protected");
                 continue;
             }
 
             if(is_opponent_at(x, y, color)) {
 
                 if( get_at(x, y, Rank) == Knight) {
-                    console_print(0, "CHECK AT ^^");
                     return true;
                 }
             }
         }
     }
-    server_print("is_square_under_attack returned false");
+    // server_print("is_square_under_attack returned false");
     return false;
 }
 
 bool:is_valid_piece_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) {
-    server_print("is_valid_piece_move called")
+    // server_print("is_valid_piece_move called");
     new piece[PieceStruct];
     piece = get_piece_data_by_id(movingPieceId);
-    print_piece(boardIndex, movingPieceId);
+    // print_piece(boardIndex, movingPieceId);
     switch(piece[Rank]) {
         case Pawn: {
             // offsets relative to white pawn's position
@@ -650,7 +628,7 @@ bool:is_valid_piece_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) 
             if(found == -1) return false;
             if(is_ally_at(to_x, to_y, piece[Color])) return false;
 
-            server_print("pawn move validation");
+            // server_print("pawn move validation");
 
             switch(found) {
                 case 0: 
@@ -665,7 +643,7 @@ bool:is_valid_piece_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) 
                             return true;
                 case 2..3: {
 
-                        server_print("is_opponent_at: %b, is_king_at: %b", is_opponent_at(to_x, to_y, piece[Color]), is_king_at(to_x, to_y));
+                        // server_print("is_opponent_at: %b, is_king_at: %b", is_opponent_at(to_x, to_y, piece[Color]), is_king_at(to_x, to_y));
                         // diagonal move
                         if(is_can_perform_en_passant(boardIndex, movingPieceId, from_y, to_x)
                         || (is_opponent_at(to_x, to_y, piece[Color]) 
@@ -674,7 +652,7 @@ bool:is_valid_piece_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) 
                 }
             }
 
-            server_print("pawn move is invalid");
+            // server_print("pawn move is invalid");
         }
         case Bishop: {
             new dist_x = abs(to_x - from_x);
@@ -804,13 +782,8 @@ create_move(move[MoveStruct], boardIndex, movingPieceId, from_x, from_y, to_x, t
     move[EndRow] = to_x;
     move[EndColumn] = to_y;
     move[MovingPieceID] = movingPieceId;
-    console_print(0, "crtmove MovingPieceID %d", movingPieceId);
-    print_piece(boardIndex, movingPieceId);
 
     new piece[PieceStruct];
-    console_print(0, " cm %d %d ", BOARD_ROWS, BOARD_COLUMNS);
-    console_print(0, " cm %d ", boardIndex);
-    console_print(0, " cm %d",  g_PiecesMatrix[boardIndex][from_x][from_y]);
     piece = get_piece_data(from_x, from_y);
 
     if(is_can_perform_en_passant(boardIndex, movingPieceId, from_y, to_x)) {
@@ -826,7 +799,7 @@ create_move(move[MoveStruct], boardIndex, movingPieceId, from_x, from_y, to_x, t
         move[CapturedRank] = None;
         if(!is_square_empty(to_x, to_y))
             move[OtherPieceID] = get_piece(to_x, to_y);
-        server_print("create_move promote");
+        // server_print("create_move promote");
         return;
     }
 
@@ -848,7 +821,7 @@ create_move(move[MoveStruct], boardIndex, movingPieceId, from_x, from_y, to_x, t
         move[Row2] = from_x + dir;
         move[Column2] = to_y;
         move[OtherPieceID] = get_piece(to_x, to_y);
-        server_print("create_move castling, dir: %d", dir);
+        // server_print("create_move castling, dir: %d", dir);
         return;
     }
 
@@ -868,16 +841,15 @@ create_move(move[MoveStruct], boardIndex, movingPieceId, from_x, from_y, to_x, t
         new capturedPieceId = get_piece(to_x, to_y);
         // move[CapturedRank] = get(capturedPieceId, Rank);
         move[OtherPieceID] = capturedPieceId;
-        server_print("create_move Capture");
+        // server_print("create_move Capture");
         return;
     }
 
 }
 print_piece(boardIndex, id) {
     new piece[PieceStruct];
-    console_print(0, "pp %d", id);
     piece = get_piece_data_by_id(id);
-    console_print(0, "id:%d rank:%d color:%d row:%d column:%d status:%d", piece[Id], piece[Rank], piece[Color], piece[Row], piece[Column], piece[Status]);
+    server_print("id:%d rank:%d color:%d row:%d column:%d status:%d", piece[Id], piece[Rank], piece[Color], piece[Row], piece[Column], piece[Status]);
 }
 print_board(boardIndex) {
     new str[BOARD_ROWS+1] = {'*', ...};
@@ -894,7 +866,7 @@ print_board(boardIndex) {
                     case Pawn: str[x] = 'p';
                     default: { str[x] = '_'; }
                 }
-                // server_print("print_board x: %d", x);
+                server_print("print_board x: %d", x);
             }
         }
         str[sizeof str - 1] = '^0';
@@ -913,3 +885,4 @@ is_can_perform_en_passant(boardIndex, movingPieceId, y, px) {
         && is_opponent_at(px, y, capturingPieceColor)
         && g_iLongMovedPawnID[boardIndex] == get_piece(px, y);
 }
+

@@ -1,4 +1,5 @@
-// Credits: R3X@Box System
+// TODO: threefold repetition
+// TODO: 50 move rule
 #include <amxmodx>
 #include <amxmisc>
 #include <fakemeta>
@@ -14,6 +15,7 @@
 #define AUTHOR "Lopol2010"
 #define VERSION "0.0.1"
 
+// these for debug
 #pragma semicolon 1
 
 new g_iSelectedPiece[MAX_BOARDS][33];
@@ -29,19 +31,11 @@ public plugin_init()
     // register_clcmd("chess_admin_menu", "cmd_admin_menu", ACCESS_FLAG);
     register_clcmd("chess_delete_all", "cmd_delete_all", ACCESS_FLAG);
 
-    register_think(BOX_CLASSNAME, "fwd_box_think");
+    // register_think(BOX_CLASSNAME, "fwd_box_think");
 
     register_forward( FM_CmdStart, "FwdCmdStart" );
-    // register_forward(FM_TraceLine, "fwd_trace_line", 1);
     register_forward(FM_PlayerPreThink, "fwd_player_prethink", 1);
 
-    // register_touch(BOX_CLASSNAME, "*", "fwd_box_touch");
-    // g_hForwards[StartTouch] = CreateMultiForward("bwb_box_start_touch", ET_STOP, FP_CELL, FP_CELL, FP_CELL);
-    // g_hForwards[StopTouch] = CreateMultiForward("bwb_box_stop_touch", ET_STOP, FP_CELL, FP_CELL, FP_CELL);
-    // g_hForwards[FrameTouch] = CreateMultiForward("bwb_box_touch", ET_STOP, FP_CELL, FP_CELL, FP_CELL);
-    // g_hForwards[BoxCreated] = CreateMultiForward("bwb_box_created", ET_STOP, FP_CELL, FP_STRING);
-    // g_hForwards[BoxDeleted] = CreateMultiForward("bwb_box_deleted", ET_STOP, FP_CELL, FP_STRING);
-    // g_hForwards[InvalidTouch] = CreateMultiForward("bwb_box_invalid_touch", ET_STOP, FP_CELL, FP_CELL, FP_CELL);
 
     // chess_render_init();
     // start_new_game();
@@ -60,23 +54,11 @@ public plugin_precache()
 
     g_iSpriteLine = precache_model("sprites/white.spr");
 }
-public plugin_natives()
-{
-    register_library("box_with_boxes");
-
-    g_aTypes = ArrayCreate(TypeStruct, 1);
-
-    register_native("bwb_create_box", "native_create_box");
-    // register_native("bwb_register_box_type", "native_register_box_type");
-    register_native("bwb_get_type_index", "native_get_type_index");
-    register_native("bwb_get_box_type", "native_get_box_type");
-}
 public plugin_cfg()
 {
-    load_types();
 }
 
-public client_disconnect(id)
+public client_disconnected(id)
 {
     if(g_iPlacingBoard[id] != -1) {
         delete_board(g_iPlacingBoard[id]);
@@ -119,74 +101,82 @@ public fwd_player_prethink(id)
     Button = pev(id, pev_button);
     OldButtons = pev(id, pev_oldbuttons);
  
-//  client_print(0, print_chat, "%d %d", Button, IN_ATTACK2);
-    if((Button & IN_ATTACK) && !(OldButtons & IN_ATTACK))
-    {
-        // Player presses right click
-        new Float:origin[3];
-        // pev(id, pev_origin, origin);
-            // client_print (0, print_chat, " 123 %d %d ", 1, 1);
-        new x, y, boardIndex, promotion_menu_item_entity, new_rank;
-        switch(Traceline(id, g_iGlowEnt, origin, x, y, boardIndex, promotion_menu_item_entity, new_rank)) {
+    // start with loop + traceline in order to prevent attack animation 
+    // otherwise when doing move in chess you would see unfinished attacks
+    for(new i = 0; i < MAX_BOARDS; i++) {
+        if(g_iBoardPlayers[i][id] == id) {
 
-            case TR_RESULT_NONE: { }
-            case TR_RESULT_BOARD: { 
-                if(g_bPromotionMenuOpen[boardIndex]) {
-                    server_print("you should choose promotion option!");
-                } else {
-                    // set_pev(id, pev_flNextAttack, 10.0);
-                    set_pdata_float(id, m_flNextAttack, 1.0);
+            new Float:origin[3];
+            new x, y, boardIndex, promotion_menu_item_entity, new_rank;
+            switch(Traceline(id, g_iGlowEnt, origin, x, y, boardIndex, promotion_menu_item_entity, new_rank)) {
 
-                    // client_print (0, print_chat, " 123 %d %d ", x, y);
-                    if(g_iSelectedPiece[boardIndex][id] != InvalidID) {
-                        new px, py;
-                        px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Row];
-                        py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Column];
-                        console_print(0, "move: %d %d %d %d", px, py, x, y);
-                        if(do_move(boardIndex, px, py, x, y)) {
-                            console_print(0, "move success");
-                            render_pieces(boardIndex);
-                            new pawnIndex;
-                            if(is_wait_for_promote_choice(boardIndex, pawnIndex)) {
-                                server_print("is_wait_for_promote_choice: true, pawnIndex: %d", pawnIndex);
-                                if(!g_bPromotionMenuOpen[boardIndex]) {
-                                    server_print("g_bPromotionMenuOpen: false");
-                                    create_promotion_menu(boardIndex, pawnIndex);
-                                    g_bPromotionMenuOpen[boardIndex] = true;
-                                }
-                            }
+                case TR_RESULT_NONE: { 
+                    // server_print("traceline result none!"); 
 
-                        } else {
-                            console_print(0, "move failed");
+                    if(g_iPlacingBoard[id] != -1) {
+                        new boardEnt = g_iBoardEntity[g_iPlacingBoard[id]];
+                        set_pev(boardEnt, pev_origin, origin);
+                        if((Button & IN_ATTACK) && !(OldButtons & IN_ATTACK)) {
+                            set_pev(boardEnt, pev_solid, SOLID_BBOX);
+                            create_board_entities_dbg(g_iPlacingBoard[id]);
+                            g_iPlacingBoard[id] = -1;
                         }
-                        g_iSelectedPiece[boardIndex][id] = InvalidID;
-                        return;
                     }
-                    g_iSelectedPiece[boardIndex][id] = g_PiecesMatrix[boardIndex][x][y];
+                }
+                case TR_RESULT_BOARD: { 
+                    // player looking at board, prevent attack animation
+                    set_pdata_float(id, m_flNextAttack, 1.0);
+                    if((Button & IN_ATTACK) && !(OldButtons & IN_ATTACK)) {
+                        if(!g_bPromotionMenuOpen[boardIndex]) {
+                            // server_print("g_iSelectedPiece[boardIndex][id] %d", g_iSelectedPiece[boardIndex][id]);
+                            if(g_iSelectedPiece[boardIndex][id] != InvalidID) {
+                                new px, py;
+                                px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Row];
+                                py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Column];
+                                // server_print("move: %d %d -> %d %d", px, py, x, y);
+                                if(do_move(boardIndex, px, py, x, y)) {
+                                    // server_print("move success");
+                                    render_pieces(boardIndex);
+                                    new pawnIndex;
+                                    if(is_wait_for_promote_choice(boardIndex, pawnIndex)) {
+                                        // server_print("is_wait_for_promote_choice: true, pawnIndex: %d", pawnIndex);
+                                        if(!g_bPromotionMenuOpen[boardIndex]) {
+                                            // server_print("g_bPromotionMenuOpen: false");
+                                            create_promotion_menu(boardIndex, pawnIndex);
+                                            g_bPromotionMenuOpen[boardIndex] = true;
+                                        }
+                                    }
+
+                                } else {
+                                    // server_print("move failed");
+                                    client_print(id, print_chat, "move failed!");
+                                }
+                                g_iSelectedPiece[boardIndex][id] = InvalidID;
+                            } else {
+                                g_iSelectedPiece[boardIndex][id] = g_PiecesMatrix[boardIndex][x][y];
+                            }
+                        }
+                    }
+
                     return;
                 }
+                case TR_RESULT_PROMOTION_MENU_ITEM: { 
+                    // player chosing pieces, prevent attack animation
+                    set_pdata_float(id, m_flNextAttack, 1.0);
+                    if(!((Button & IN_ATTACK) && !(OldButtons & IN_ATTACK))) return;
+
+                    new pawnId = pev(promotion_menu_item_entity, PEV_PIECE_ID);
+                    set_list(pawnId, Rank, new_rank);
+                    print_piece(boardIndex, pawnId);
+                    
+                    delete_promotion_menu(boardIndex);
+                    g_bPromotionMenuOpen[boardIndex] = false;
+                    render_pieces(boardIndex);
+                }
+
             }
-            case TR_RESULT_PROMOTION_MENU_ITEM: { 
-                new pawnId = pev(promotion_menu_item_entity, PEV_PIECE_ID);
-                set_list(pawnId, Rank, new_rank);
-                print_piece(boardIndex, pawnId);
-                
-                delete_promotion_menu(boardIndex);
-                g_bPromotionMenuOpen[boardIndex] = false;
-                render_pieces(boardIndex);
-            }
 
-        }
-        g_iSelectedPiece[boardIndex][id] = InvalidID;
-
-        if(g_iPlacingBoard[id] != -1) {
-
-            create_board_entities_dbg(g_iPlacingBoard[id], origin);
-            new boardEnt = g_iBoardEntity[g_iPlacingBoard[id]];
-            server_print("boardEnt %d", boardEnt);
-            // set_pev(boardEnt, pev_origin, origin);
-            // set_task(BOX_VISUAL_THINK_TIMER, "box_visual_think", boardEnt, .flags = "b");
-            g_iPlacingBoard[id] = -1;
+            // g_iSelectedPiece[boardIndex][id] = InvalidID;
         }
     }
    
@@ -262,7 +252,7 @@ public chess_menu_handler(id, menu, item)
 public choose_opponent_menu( id )
  {
     //Create a variable to hold the menu
-    new menu = menu_create( "\rLook at this Player Menu!:", "choose_opponent_menu_handler" );
+    new menu = menu_create( "\rChoose player to request a game!:", "choose_opponent_menu_handler" );
 
     //We will need to create some variables so we can loop through all the players
     new players[32], pnum, tempid;
@@ -376,17 +366,19 @@ public you_challenged_menu_handler( id, menu, item )
         client_print(playerTwo, print_chat, "game aborted: max boards limit reached");
         return;
     }
-    server_print("A game of chess started with players: %n | %n", playerOne, playerTwo);
+    // server_print("A game of chess started with players: %n | %n", playerOne, playerTwo);
     client_print(playerOne, print_chat, "A game of chess against: %n", playerTwo);
     client_print(playerTwo, print_chat, "A game of chess against: %n", playerOne);
     
     g_iGlowEnt = create_glow();
     new boardIndex = init_new_board();
-    server_print("board created %d", boardIndex);
+    // server_print("board created %d", boardIndex);
     g_iPlacingBoard[playerTwo] = boardIndex;
     g_iBoardPlayers[boardIndex][playerOne] = playerOne;
     g_iBoardPlayers[boardIndex][playerTwo] = playerTwo;
 
+    // create_board_entities_dbg(g_iPlacingBoard[playerTwo]);
+    new ent = create_board_entity(Float:{0.0, 0.0, 0.0}, boardIndex);
  }
 
 public cmd_delete_all(id, level, cid)

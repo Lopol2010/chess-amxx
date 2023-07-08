@@ -13,8 +13,7 @@ history_push(boardIndex, entry[MoveStruct])
 {
     if(!g_aHistory[boardIndex]) g_aHistory[boardIndex] = ArrayCreate(sizeof entry);
     
-    new index = ArrayPushArray(g_aHistory[boardIndex], entry, sizeof entry);
-    console_print(0, "history new index: %d, entry[pieceid] %d", index, entry[MovingPieceID]);
+    ArrayPushArray(g_aHistory[boardIndex], entry, sizeof entry);
 }
 
 history_pop(boardIndex, entry[MoveStruct])

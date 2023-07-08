@@ -12,7 +12,6 @@
 #define SQUARE_COUNT (BOARD_ROWS * BOARD_COLUMNS)
 #define PIECE_COUNT 32
 
-
 enum _:PieceRank {
     None,
     Pawn,
