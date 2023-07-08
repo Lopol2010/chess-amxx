@@ -16,10 +16,8 @@
 
 #pragma semicolon 1
 
-// TODO: this should be per player + per board (e.g. player can select multiple pieces if each of them is on different board)
-// TODO: clear on client_disconnect
-new g_iSelectedPiece[MAX_BOARDS] = { InvalidID, ... };
-new g_iBoardPlayers[MAX_BOARDS][2];
+new g_iSelectedPiece[MAX_BOARDS][33];
+new g_iBoardPlayers[MAX_BOARDS][33];
 new g_iPlacingBoard[33] = { -1, ... };
 new g_bPromotionMenuOpen[MAX_BOARDS];
 
@@ -47,6 +45,11 @@ public plugin_init()
 
     // chess_render_init();
     // start_new_game();
+    for(new i = 0; i < MAX_BOARDS; i++) {
+        for(new j = 0; j < 33; j++) {
+            g_iSelectedPiece[i][j] = InvalidID;
+        }
+    }
 }
 
 public plugin_precache()
@@ -76,20 +79,20 @@ public plugin_cfg()
 public client_disconnect(id)
 {
     if(g_iPlacingBoard[id] != -1) {
-        // TODO: delete board
         delete_board(g_iPlacingBoard[id]);
         g_iPlacingBoard[id] = -1;
     }
 
     for(new i = 0; i < MAX_BOARDS; i++) {
-        if(g_iBoardPlayers[i][0] == id || g_iBoardPlayers[i][1] == id) {
-            // TODO: delete board
+        if(g_iBoardPlayers[i][id] == id || g_iBoardPlayers[i][id] == id) {
             delete_board(i);
-            g_iBoardPlayers[i][0] = -1;
-            g_iBoardPlayers[i][1] = -1;
+            g_iBoardPlayers[i][id] = -1;
+            g_iBoardPlayers[i][id] = -1;
+            g_iSelectedPiece[i][id] = InvalidID;
+            g_iSelectedPiece[i][id] = InvalidID;
         }
     }
-    
+
 }
 
 public delete_board(i) {
@@ -135,10 +138,10 @@ public fwd_player_prethink(id)
                     set_pdata_float(id, m_flNextAttack, 1.0);
 
                     // client_print (0, print_chat, " 123 %d %d ", x, y);
-                    if(g_iSelectedPiece[boardIndex] != InvalidID) {
+                    if(g_iSelectedPiece[boardIndex][id] != InvalidID) {
                         new px, py;
-                        px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex]][Row];
-                        py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex]][Column];
+                        px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Row];
+                        py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Column];
                         console_print(0, "move: %d %d %d %d", px, py, x, y);
                         if(do_move(boardIndex, px, py, x, y)) {
                             console_print(0, "move success");
@@ -156,10 +159,10 @@ public fwd_player_prethink(id)
                         } else {
                             console_print(0, "move failed");
                         }
-                        g_iSelectedPiece[boardIndex] = InvalidID;
+                        g_iSelectedPiece[boardIndex][id] = InvalidID;
                         return;
                     }
-                    g_iSelectedPiece[boardIndex] = g_PiecesMatrix[boardIndex][x][y];
+                    g_iSelectedPiece[boardIndex][id] = g_PiecesMatrix[boardIndex][x][y];
                     return;
                 }
             }
@@ -174,7 +177,7 @@ public fwd_player_prethink(id)
             }
 
         }
-        g_iSelectedPiece[boardIndex] = InvalidID;
+        g_iSelectedPiece[boardIndex][id] = InvalidID;
 
         if(g_iPlacingBoard[id] != -1) {
 
@@ -199,20 +202,12 @@ public fwd_player_prethink(id)
 
 } 
 
-// public fwd_player_prethink(id)
-// {
-
-//     return FMRES_IGNORED;
+// start_new_game() {
+//     new boardIndex = init_new_board();
+//     // g_iGlowEnt = create_glow();
+//     create_board_entities_dbg(boardIndex);
+//     // render_pieces(boardIndex);
 // }
-
-// TODO: restrict board to be usable only by 2 players
-start_new_game() {
-
-    new boardIndex = init_new_board();
-    // g_iGlowEnt = create_glow();
-    create_board_entities_dbg(boardIndex);
-    // render_pieces(boardIndex);
-}
 
 public cmd_chess(id, level, cid)
 {
@@ -389,8 +384,8 @@ public you_challenged_menu_handler( id, menu, item )
     new boardIndex = init_new_board();
     server_print("board created %d", boardIndex);
     g_iPlacingBoard[playerTwo] = boardIndex;
-    g_iBoardPlayers[boardIndex][0] = playerOne;
-    g_iBoardPlayers[boardIndex][1] = playerTwo;
+    g_iBoardPlayers[boardIndex][playerOne] = playerOne;
+    g_iBoardPlayers[boardIndex][playerTwo] = playerTwo;
 
  }
 
@@ -402,8 +397,8 @@ public cmd_delete_all(id, level, cid)
 
     for(new i = 0; i < MAX_BOARDS; i++) {
         if(!g_Boards[i][IsInitialized]) continue;
-        g_iBoardPlayers[i][0] = -1;
-        g_iBoardPlayers[i][1] = -1;
+        g_iBoardPlayers[i][id] = -1;
+        g_iBoardPlayers[i][id] = -1;
         delete_board(i);
     }
 

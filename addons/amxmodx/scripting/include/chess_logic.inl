@@ -1,30 +1,3 @@
-/*
-    перед поиском клетки для хода фигуры:
-        проверить: нашему королю сейчас шах?
-            если шах от 2ух фигур:
-                возможен только ход королём (бей или беги, так же проверять с помощью симуляции)
-                если фигура которой ищем ходы не король, сразу ставим 0 возможных ходов
-                иначе если это король, ищем возможные ходы
-            если шах от 1ой фигуры:
-                может ли наша фигура: 
-                    съесть атакующего?
-                        если да, записываем этот ход
-                    закрыть собой линию атаки на короля?
-                    (симулируем ходы, каждый раз проверяя закрыли ли короля, если да, одобрям такие ходы)
-            иначе, когда нет шаха, для каждой клетки-кандидатa на возможный ход:
-                нужно проверить, ход на клетку приведёт к шаху союзного короля?
-                (симулируем ход, проверяем шах или нет)
-                    если да, отклоняем клетку
-                    если шаха не будет, одобряем клетку
-
-        после хода фигуры:
-            стираем кеш данных союзного короля
-            проверить, получил ли оппонент шах
-                если да, то обновляем кеш короля оппонента:
-                    шах:ДА, отКого[2]: {фигyра1, -1}
-
-*/
-
 // TODO: review all getters that i made, without safety checks they throw errors everywhere...
 
 #include <amxmodx>
@@ -61,7 +34,6 @@
 new g_PiecesMatrix[MAX_BOARDS][BOARD_ROWS][BOARD_COLUMNS]; // makes connection from X,Y to pieceId
 new g_PiecesList[MAX_BOARDS][PIECE_COUNT][PieceStruct];    // makes connection from pieceId to PieceStruct and thus to X,Y
 new g_Boards[MAX_BOARDS][BoardStruct];
-// new g_aChecks[MAX_BOARDS]; // TODO: init with Arrays. these will be updated each move
 new g_iLongMovedPawnID[MAX_BOARDS]; // keeps id of the pawn that did double move and no one else moved after that (for En Passant capture)
 new bool:g_bHasKingMoved[MAX_BOARDS][Color]; 
 new Array:g_aMovedRooks[MAX_BOARDS]; 
@@ -80,7 +52,7 @@ get_king_id(boardIndex, color) {
     for(new i = 0; i < sizeof g_PiecesList[]; i++) 
         if(get(i, Rank) == King && get(i, Color) == color) 
             return i;
-    return -1;
+    log_amx("ERROR: id not found in get_king_id")
 }
 // get_opposite_color(color) return color == White ? Black : White;
 // is_contain_move(Array:array, MoveStruct:move) {
@@ -211,7 +183,6 @@ do_move(boardIndex, from_x, from_y, to_x, to_y) {
 }
 
 do_move_unvalidated(boardIndex, movingPieceId, from_x, from_y, to_x, to_y, move[MoveStruct]) {
-    // TODO: castling, capture, move, vzyatie na prohode...
     switch(move[MoveType]) {
         case Move: {
             set_matrix(to_x, to_y, movingPieceId)
@@ -263,6 +234,8 @@ do_move_unvalidated(boardIndex, movingPieceId, from_x, from_y, to_x, to_y, move[
             set_list(rookId, Column, ry)
             set_matrix(from_x, from_y, InvalidID) 
             set_matrix(to_x, to_y, InvalidID) 
+
+            ArrayPushCell(g_aMovedRooks[boardIndex], rookId);
         }
         case Promote: {
             set_matrix(to_x, to_y, movingPieceId)
@@ -276,7 +249,7 @@ do_move_unvalidated(boardIndex, movingPieceId, from_x, from_y, to_x, to_y, move[
             }
         }
     }
-    // TODO: possible bug, maybe after castling rook is not marked as moved
+    
     if(get(movingPieceId, Rank) == Rook) {
         if(!is_rook_moved_by_id(movingPieceId)) 
             ArrayPushCell(g_aMovedRooks[boardIndex], movingPieceId);
@@ -372,6 +345,9 @@ undo_move(boardIndex, deletedMove[MoveStruct], newLastMove[MoveStruct], hasNewLa
             set_list(movingPieceId, Column, from_y);
             set_list(rookId, Row, to_x);
             set_list(rookId, Column, to_y);
+
+            new removeIndex = ArrayFindValue(g_aMovedRooks[boardIndex], rookId);
+            ArrayDeleteItem(g_aMovedRooks[boardIndex], removeIndex);
         }
         case Promote: {
             set_matrix(to_x, to_y, InvalidID)
@@ -470,7 +446,6 @@ bool:is_valid_castling(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) {
 }
 
 bool:is_king_checked(boardIndex, color) {
-    // TODO: verify that id is found
     new kingId = get_king_id(boardIndex, color);
     new kingData[PieceStruct]; 
     kingData = get_piece_data_by_id(kingId);
@@ -809,12 +784,11 @@ bool:is_valid_piece_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) 
                             return false;
                         return true;
                     }
-                    // for castling
-                    if((to_x == 0 && to_y == 0 
-                    || to_x == 7 && to_y == 0 
-                    || to_x == 0 && to_y == 7 
-                    || to_x == 7 && to_y == 7)
-                    && get_at(to_x, to_y, Rank) == Rook) {
+                    // castling (there is more validation in other validation functions)
+                    if(
+                        (from_x == 4 && from_y == 0 && (to_y == 0 && (to_x == 0 || to_x == 7))
+                        || from_x == 4 && from_y == 7 && (to_y == 7 && (to_x == 0 || to_x == 7)))
+                        && get_at(to_x, to_y, Rank) == Rook && get_at(to_x, to_y, Color) == piece[Color]) {
                         return true;
                     }
                 }
@@ -824,8 +798,6 @@ bool:is_valid_piece_move(boardIndex, movingPieceId, from_x, from_y, to_x, to_y) 
     return false;
 }
 
-//TODO: make sure structure is filled correctly, 
-// TODO: bug with king, possibly due to struct not filled correctly, or some shit with history ...
 create_move(move[MoveStruct], boardIndex, movingPieceId, from_x, from_y, to_x, to_y) {
     move[StartRow] = from_x;
     move[StartColumn] = from_y;
@@ -849,7 +821,6 @@ create_move(move[MoveStruct], boardIndex, movingPieceId, from_x, from_y, to_x, t
         return;
     }
 
-    // TODO: insert promote branch here (order is important)
     if(piece[Rank] == Pawn && (to_y == 0 || to_y == 7)) {
         move[MoveType] = Promote;
         move[CapturedRank] = None;
