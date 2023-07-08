@@ -52,11 +52,8 @@ public plugin_init()
 public plugin_precache()
 {
     precache_model(g_szModel);
-    precache_model(g_szPawnModel);
-    precache_model(g_szQueenModel);
-    precache_model(g_szRookModel);
-    precache_model(g_szKingModel);
-    precache_model(g_szChessModel);
+    precache_model(g_szChessPiecesModel);
+    precache_model(g_szChessBoardModel);
 
     g_iSpriteLine = precache_model("sprites/white.spr");
 }
@@ -97,19 +94,16 @@ public client_disconnect(id)
 
 public delete_board(i) {
     new boardEnt = g_iBoardEntity[i];
-    remove_task(boardEnt);
-    remove_entity(boardEnt);
+    if(task_exists(boardEnt)) remove_task(boardEnt);
+    if(is_valid_ent(boardEnt)) remove_entity(boardEnt);
     deinitialize_board(i);
     for(new x = 0; x < BOARD_COLUMNS; x++) {
         for(new y = 0; y < BOARD_ROWS; y++) {
             new pieceEnt = g_iPieceEntities[i][x][y];
-            if(!is_valid_ent(pieceEnt)) continue;
-            remove_entity(pieceEnt);
+            if(is_valid_ent(pieceEnt)) remove_entity(pieceEnt);
         }
     }
-    for(new x = 0; x < 4; x++) {
-        remove_entity(g_iPromotionMenuEntities[i][x]);
-    }
+    delete_promotion_menu(i);
     g_bPromotionMenuOpen[i] = false;
 }
 
@@ -129,43 +123,56 @@ public fwd_player_prethink(id)
         new Float:origin[3];
         // pev(id, pev_origin, origin);
             // client_print (0, print_chat, " 123 %d %d ", 1, 1);
-        new x, y, boardIndex;
-        if(Traceline(id, g_iGlowEnt, origin, x, y, boardIndex)) {
+        new x, y, boardIndex, promotion_menu_item_entity, new_rank;
+        switch(Traceline(id, g_iGlowEnt, origin, x, y, boardIndex, promotion_menu_item_entity, new_rank)) {
 
-            if(g_bPromotionMenuOpen[boardIndex]) {
-                server_print("you should choose promotion option!");
-            } else {
-                // set_pev(id, pev_flNextAttack, 10.0);
-                set_pdata_float(id, m_flNextAttack, 1.0);
+            case TR_RESULT_NONE: { }
+            case TR_RESULT_BOARD: { 
+                if(g_bPromotionMenuOpen[boardIndex]) {
+                    server_print("you should choose promotion option!");
+                } else {
+                    // set_pev(id, pev_flNextAttack, 10.0);
+                    set_pdata_float(id, m_flNextAttack, 1.0);
 
-                // client_print (0, print_chat, " 123 %d %d ", x, y);
-                if(g_iSelectedPiece[boardIndex] != InvalidID) {
-                    new px, py;
-                    px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex]][Row];
-                    py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex]][Column];
-                    console_print(0, "move: %d %d %d %d", px, py, x, y);
-                    if(do_move(boardIndex, px, py, x, y)) {
-                        console_print(0, "move success");
-                        render_pieces(boardIndex);
-                        new pawnIndex;
-                        if(is_wait_for_promote_choice(boardIndex, pawnIndex)) {
-                            server_print("is_wait_for_promote_choice: true, pawnIndex: %d", pawnIndex);
-                            if(!g_bPromotionMenuOpen[boardIndex]) {
-                                server_print("g_bPromotionMenuOpen: false");
-                                create_promotion_menu(boardIndex, pawnIndex);
-                                g_bPromotionMenuOpen[boardIndex] = true;
+                    // client_print (0, print_chat, " 123 %d %d ", x, y);
+                    if(g_iSelectedPiece[boardIndex] != InvalidID) {
+                        new px, py;
+                        px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex]][Row];
+                        py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex]][Column];
+                        console_print(0, "move: %d %d %d %d", px, py, x, y);
+                        if(do_move(boardIndex, px, py, x, y)) {
+                            console_print(0, "move success");
+                            render_pieces(boardIndex);
+                            new pawnIndex;
+                            if(is_wait_for_promote_choice(boardIndex, pawnIndex)) {
+                                server_print("is_wait_for_promote_choice: true, pawnIndex: %d", pawnIndex);
+                                if(!g_bPromotionMenuOpen[boardIndex]) {
+                                    server_print("g_bPromotionMenuOpen: false");
+                                    create_promotion_menu(boardIndex, pawnIndex);
+                                    g_bPromotionMenuOpen[boardIndex] = true;
+                                }
                             }
-                        }
 
-                    } else {
-                        console_print(0, "move failed");
+                        } else {
+                            console_print(0, "move failed");
+                        }
+                        g_iSelectedPiece[boardIndex] = InvalidID;
+                        return;
                     }
-                    g_iSelectedPiece[boardIndex] = InvalidID;
+                    g_iSelectedPiece[boardIndex] = g_PiecesMatrix[boardIndex][x][y];
                     return;
                 }
-                g_iSelectedPiece[boardIndex] = g_PiecesMatrix[boardIndex][x][y];
-                return;
             }
+            case TR_RESULT_PROMOTION_MENU_ITEM: { 
+                new pawnId = pev(promotion_menu_item_entity, PEV_PIECE_ID);
+                set_list(pawnId, Rank, new_rank);
+                print_piece(boardIndex, pawnId);
+                
+                delete_promotion_menu(boardIndex);
+                g_bPromotionMenuOpen[boardIndex] = false;
+                render_pieces(boardIndex);
+            }
+
         }
         g_iSelectedPiece[boardIndex] = InvalidID;
 

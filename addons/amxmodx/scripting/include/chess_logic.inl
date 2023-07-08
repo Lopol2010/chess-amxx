@@ -68,9 +68,10 @@ new Array:g_aMovedRooks[MAX_BOARDS];
 new g_iTurn[MAX_BOARDS];
 
 is_wait_for_promote_choice(boardIndex, &pawnIndex = -1) {
-    if(!is_history_empty(boardIndex) && history_get_var_from_last(boardIndex, _:MoveType) == _:Promote) {
+    if(!is_history_empty(boardIndex) 
+    && history_get_var_from_last(boardIndex, _:MoveType) == _:Promote) {
         pawnIndex = history_get_var_from_last(boardIndex, MovingPieceID);
-        return true;
+        if(get(pawnIndex, Rank) == Pawn) return true;
     }
     return false;
 }
@@ -272,7 +273,6 @@ do_move_unvalidated(boardIndex, movingPieceId, from_x, from_y, to_x, to_y, move[
             new capturedPieceIndex = move[OtherPieceID];
             if(capturedPieceIndex != InvalidID) {
                 set_list(capturedPieceIndex, Status, Captured)
-                set_matrix(to_x, to_y, InvalidID)
             }
         }
     }
@@ -909,7 +909,7 @@ print_piece(boardIndex, id) {
     console_print(0, "id:%d rank:%d color:%d row:%d column:%d status:%d", piece[Id], piece[Rank], piece[Color], piece[Row], piece[Column], piece[Status]);
 }
 print_board(boardIndex) {
-    new str[BOARD_ROWS] = {'*', ...};
+    new str[BOARD_ROWS+1] = {'*', ...};
     server_print("--------------------");
     for(new y = BOARD_ROWS-1; y >= 0 ; y--) {
         for(new x = 0; x < BOARD_COLUMNS; x++) {
@@ -921,10 +921,12 @@ print_board(boardIndex) {
                     case Rook: str[x] = 'r';
                     case Bishop: str[x] = 'b';
                     case Pawn: str[x] = 'p';
+                    default: { str[x] = '_'; }
                 }
                 // server_print("print_board x: %d", x);
             }
         }
+        str[sizeof str - 1] = '^0';
         server_print("%s", str);
         arrayset(str, '*', sizeof str);
     }

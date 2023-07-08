@@ -25,8 +25,8 @@
 #define ANCHOR_CLASSNAME "bwb_anchor"
 #define SELECTED_ANCHOR_CLASSNAME "bwb_selected_anchor"
 
-new Float:BOARD_SIZE[3] = { 66.92, 66.92, 3.4 };
-new Float:SQUARE_SIZE = 8.37;
+new Float:BOARD_SIZE[3] = { 64.00, 64.00, 4.4 };
+new Float:SQUARE_SIZE = 8.00;
 new Float:BOARD_CORNER[3];
 // new Float:FIRST_SQUARE_OFFSET[3] = { 5.8, 5.8, -2.0 };
 new Float:FIRST_SQUARE_OFFSET[3] = { 0.0, ... };
@@ -36,17 +36,12 @@ new g_iPieceEntities[MAX_BOARDS][BOARD_ROWS][BOARD_COLUMNS];
 new g_iPromotionMenuEntities[MAX_BOARDS][4];
 
 new const g_szModel[] = "sprites/cnt1.spr";
-// new const g_szPawnModel[] = "models/winebottle.mdl";
-new const g_szChessModel[] = "models/chess.mdl";
-new const g_szPawnModel[] = "models/pawn.mdl";
-new const g_szQueenModel[] = "models/queen.mdl";
-new const g_szRookModel[] = "models/rook.mdl";
-new const g_szKingModel[] = "models/king.mdl";
+new const g_szChessPiecesModel[] = "models/chess_pieces.mdl";
+new const g_szChessBoardModel[] = "models/chess_board.mdl";
 
 // angelina.mdl
 new g_iSpriteLine;
 new g_iGlowEnt;
-
 
 // new Float:g_fDistance[33];
 // new g_iCatched[33];
@@ -84,6 +79,11 @@ enum _:HistoryStruct {
 };
 // new Array:g_aHistory;
 
+enum _:TracelineResult {
+    TR_RESULT_NONE,
+    TR_RESULT_BOARD,
+    TR_RESULT_PROMOTION_MENU_ITEM,
+};
 
 
 public native_create_box(plugin, params)
@@ -471,9 +471,8 @@ create_board_entity(const Float:origin[3], const class[] = "box")
 
     DispatchSpawn(ent);
 
-    entity_set_model(ent, g_szChessModel);
+    entity_set_model(ent, g_szChessBoardModel);
     set_pev(ent, pev_origin, origin);
-    set_pev(ent, pev_body, 0);
     set_rendering(ent, kRenderFxNone, 155, 111, 0, kRenderNormal, 255);
     // set_rendering(ent, kRenderFxPulseFast, 0, 150, 0, kRenderTransAdd, 150);
 
@@ -514,7 +513,7 @@ create_promotion_menu_item_entity(const Float:origin[3])
 
     DispatchSpawn(ent);
 
-    entity_set_model(ent, g_szChessModel);
+    entity_set_model(ent, g_szChessPiecesModel);
     set_pev(ent, pev_origin, origin);
     // set_pev(ent, pev_body, 0);
     set_rendering(ent, kRenderFxNone, 155, 111, 0, kRenderNormal, 255);
@@ -537,7 +536,7 @@ create_promotion_menu_item_entity(const Float:origin[3])
     // new Float:mins[3]; 
     // xs_vec_div_scalar(BOARD_SIZE, -2.0, mins);
     // new Float:maxs[3]; xs_vec_div_scalar(BOARD_SIZE, 2.0, maxs);
-    entity_set_size(ent, Float:{ -5.0, -5.0, -5.0 }, Float:{ 5.0, 5.0, 5.0 });
+    entity_set_size(ent, Float:{ -3.0, -3.0, 0.0 }, Float:{ 3.0, 3.0, 6.0 });
 
     return ent;
 }
@@ -1405,7 +1404,7 @@ box_start_touch(box, ent, index)
 //     // Create_Line(ent, hit, end);
 // }
 
-Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex)
+TracelineResult:Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex, &promotion_menu_item_entity, &new_rank)
 {
     new Float:fVec[3];
     pev(id, pev_v_angle, fVec);
@@ -1458,42 +1457,60 @@ Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex)
 
     get_tr2(iTraceHandle, TR_vecEndPos, hit); // out of the loop, this will get the last position of the last traceline. you can use a beam effect or something if you want
 
-    new ent = get_tr2(iTraceHandle, TR_pHit, hit); 
-    new found = -1;
+    new ent = get_tr2(iTraceHandle, TR_pHit, hit);
+    new resultType = TR_RESULT_NONE;
     if(is_valid_ent(ent)) {
-        for(new i = 0; i < MAX_BOARDS; i ++) {
+        for(new i = 0; i < MAX_BOARDS && resultType == TR_RESULT_NONE; i ++) {
             if(ent == g_iBoardEntity[i]) {
-                found = pev(ent, PEV_BOARD_INDEX);
-                break;
-            }
-        }
-
-        for(new i = 0; i < MAX_BOARDS; i ++) {
-            for(new j = 0; j < BOARD_ROWS; j++) {
-                for(new l = 0; l < BOARD_COLUMNS; l++) {
-                    new p = g_iPieceEntities[i][j][l];
-                    if(ent == p) {
-                        found = pev(p, PEV_BOARD_INDEX);
-                        ent = g_iBoardEntity[found];
-                        break;
+                boardIndex = pev(ent, PEV_BOARD_INDEX);
+                resultType = TR_RESULT_BOARD;
+            } else {
+                for(new j = 0; j < 4; j ++) {
+                    new menuItemEnt = g_iPromotionMenuEntities[i][j];
+                    if(ent == menuItemEnt) {
+                        promotion_menu_item_entity = menuItemEnt;
+                        new_rank = model_id_to_rank(pev(menuItemEnt, pev_body));
+                        server_print("j %d, new_rank %d", j, new_rank)
+                        boardIndex = pev(menuItemEnt, PEV_BOARD_INDEX);
+                        resultType = TR_RESULT_PROMOTION_MENU_ITEM;
                     }
                 }
             }
         }
-        if(found == -1) return false;
 
-        boardIndex = found;
-        x = floatround((hit[0] - (BOARD_CORNER[0] + FIRST_SQUARE_OFFSET[0])) / SQUARE_SIZE, floatround_floor);
-        y = floatround((hit[1] - (BOARD_CORNER[1] + FIRST_SQUARE_OFFSET[1])) / SQUARE_SIZE, floatround_floor);
+        for(new i = 0; i < MAX_BOARDS && resultType == TR_RESULT_NONE; i ++) {
+            for(new j = 0; j < BOARD_ROWS && resultType == TR_RESULT_NONE; j++) {
+                for(new l = 0; l < BOARD_COLUMNS && resultType == TR_RESULT_NONE; l++) {
+                    new p = g_iPieceEntities[i][j][l];
+                    if(ent == p) {
+                        boardIndex = pev(p, PEV_BOARD_INDEX);
+                        resultType = TR_RESULT_BOARD;
+                        // ent = g_iBoardEntity[found];
+                    }
+                }
+            }
+        }
 
-        // new Float:p[3];
-        // get_tr2(ptr, TR_vecEndPos, p);
-        entity_set_origin(g_iGlowEnt, hit);
-        server_print("you looking at board: %d", boardIndex);
-        
-        if(x < 0 || y < 0 || x > BOARD_ROWS-1 || y > BOARD_COLUMNS-1) return false;
-         
-        return true;
+        switch(resultType) {
+            case TR_RESULT_NONE: {
+                return TracelineResult:TR_RESULT_NONE;
+            }
+            case TR_RESULT_BOARD: {
+                x = floatround((hit[0] - (BOARD_CORNER[0] + FIRST_SQUARE_OFFSET[0])) / SQUARE_SIZE, floatround_floor);
+                y = floatround((hit[1] - (BOARD_CORNER[1] + FIRST_SQUARE_OFFSET[1])) / SQUARE_SIZE, floatround_floor);
+
+                // new Float:p[3];
+                // get_tr2(ptr, TR_vecEndPos, p);
+                entity_set_origin(g_iGlowEnt, hit);
+                server_print("you looking at board: %d", boardIndex);
+                
+                if(x < 0 || y < 0 || x > BOARD_ROWS-1 || y > BOARD_COLUMNS-1) return TracelineResult:TR_RESULT_NONE;
+                return TracelineResult:TR_RESULT_BOARD;
+            }
+            case TR_RESULT_PROMOTION_MENU_ITEM: {
+                return TracelineResult:TR_RESULT_PROMOTION_MENU_ITEM;
+            }
+        }
     }
 
 
@@ -1508,7 +1525,7 @@ Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex)
     // xs_vec_copy(hit, end);
     // end[2] += 500.0;
     // Create_Line(ent, hit, end);
-    return false;
+    return TracelineResult:TR_RESULT_NONE;
 }
 
 render_pieces(boardIndex) {
@@ -1534,6 +1551,14 @@ render_pieces(boardIndex) {
             if(!is_valid_ent(pieceEnt)) continue;
 
             piece = get_piece_data_by_id(pev(pieceEnt, PEV_PIECE_ID));
+
+            // is there promoted pawn
+            if(model_id_to_rank(pev(pieceEnt, pev_body)) == Pawn
+            && piece[Rank] != Pawn) {
+                server_print("render: promoted pawn");
+                set_pev(pieceEnt, pev_body, rank_to_model_id(piece[Rank]));
+                continue;
+            }
 
             if(x != piece[Row] || y != piece[Column]) {
                 new Float:origin[3];
@@ -1606,7 +1631,7 @@ create_board_entities_dbg(boardIndex, Float:origin[3] = { 0.0, 0.0, 0.0 }) {
             set_pev(glowEnt, PEV_BOARD_INDEX, boardIndex);
             set_pev(glowEnt, PEV_PIECE_ID, piece[Id]);
 
-            entity_set_model(glowEnt, g_szChessModel);
+            entity_set_model(glowEnt, g_szChessPiecesModel);
             new Float:angles[3];
             pev(glowEnt, pev_angles, angles);
             if(piece[Color] == White) 
@@ -1614,28 +1639,7 @@ create_board_entities_dbg(boardIndex, Float:origin[3] = { 0.0, 0.0, 0.0 }) {
             else
                 angles[1] -= 90.0;
             set_pev(glowEnt, pev_angles, angles);
-            switch(piece[Rank]) {
-                case Pawn: {
-                    set_pev(glowEnt, pev_body, 1);
-                }
-                case Bishop: {
-                    set_pev(glowEnt, pev_body, 2);
-                }
-                case Knight: {
-                    set_pev(glowEnt, pev_body, 3);
-                }
-                case Rook: {
-                    set_pev(glowEnt, pev_body, 4);
-                }
-                case Queen: {
-                    set_pev(glowEnt, pev_body, 5);
-                }
-                case King: {
-                    set_pev(glowEnt, pev_body, 6);
-                }
-                // default: {
-                // }
-            }
+            set_pev(glowEnt, pev_body, rank_to_model_id(piece[Rank]));
             if(piece[Color] != White) 
                 set_pev(glowEnt, pev_skin, 1);
             set_rendering(glowEnt, kRenderFxNone, 155, 111, 0, kRenderNormal, 255);
@@ -1665,7 +1669,7 @@ create_promotion_menu(boardIndex, pawnIndex) {
     pev(pieceEnt, pev_origin, origin);
     for(new x = 0; x < 4; x++) {
 
-        origin[2] += 10.0;
+        origin[2] += 12.0;
 
         new menuItemEnt = create_promotion_menu_item_entity(origin);
 
@@ -1673,6 +1677,7 @@ create_promotion_menu(boardIndex, pawnIndex) {
 
         set_pev(menuItemEnt, PEV_BOARD_INDEX, boardIndex);
         set_pev(menuItemEnt, pev_solid, SOLID_BBOX);
+        set_pev(menuItemEnt, PEV_PIECE_ID, piece[Id]);
         // set_pev(menuItemEnt, pev_scale, 1.0);
 
         new Float:angles[3];
@@ -1682,21 +1687,41 @@ create_promotion_menu(boardIndex, pawnIndex) {
 
         if(pieceColor != White) set_pev(menuItemEnt, pev_skin, 1);
 
-        switch(x) {
-            case 0: {
-                set_pev(menuItemEnt, pev_body, 2);
-            }
-            case 1: {
-                set_pev(menuItemEnt, pev_body, 3);
-            }
-            case 2: {
-                set_pev(menuItemEnt, pev_body, 4);
-            }
-            case 3: {
-                set_pev(menuItemEnt, pev_body, 5);
-            }
-        }
+        set_pev(menuItemEnt, pev_body, 4-x);
     }
+}
+
+delete_promotion_menu(boardIndex) {
+    for(new x = 0; x < 4; x++) {
+        if(is_valid_ent(g_iPromotionMenuEntities[boardIndex][x]))
+            remove_entity(g_iPromotionMenuEntities[boardIndex][x]);
+    }
+}
+
+model_id_to_rank(body_id) {
+    new rank = 0;
+    switch(body_id) {
+        case 0: rank = Pawn;
+        case 1: rank = Knight;
+        case 2: rank = Bishop;
+        case 3: rank = Rook;
+        case 4: rank = Queen;
+        case 5: rank = King;
+    }
+    return rank;
+}
+
+rank_to_model_id(rank) {
+    new body_id = 1;
+    switch(rank) {
+        case Pawn: body_id = 0;
+        case Knight: body_id = 1;
+        case Bishop: body_id = 2;
+        case Rook: body_id = 3;
+        case Queen: body_id = 4;
+        case King: body_id = 5;
+    }
+    return body_id;
 }
 
 chess_render_init() {
