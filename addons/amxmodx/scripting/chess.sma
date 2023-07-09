@@ -1,5 +1,6 @@
 // TODO: threefold repetition
 // TODO: 50 move rule
+// TODO: assign color to players
 #include <amxmodx>
 #include <amxmisc>
 #include <fakemeta>
@@ -86,10 +87,14 @@ public delete_board(i) {
         for(new y = 0; y < BOARD_ROWS; y++) {
             new pieceEnt = g_iPieceEntities[i][x][y];
             if(is_valid_ent(pieceEnt)) remove_entity(pieceEnt);
+            g_iPieceEntities[i][x][y] = 0;
         }
     }
     delete_promotion_menu(i);
     g_bPromotionMenuOpen[i] = false;
+
+    g_iBoardEntity[i] = 0;
+    g_iPromotionMenuEntities[i] = {0, 0, 0, 0};
 }
 
 // public FwdCmdStart(id, uc_handle)
@@ -145,6 +150,11 @@ public fwd_player_prethink(id)
                                             create_promotion_menu(boardIndex, pawnIndex);
                                             g_bPromotionMenuOpen[boardIndex] = true;
                                         }
+                                    } else {
+                                        new color = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Color];
+                                        new mate = is_mate(boardIndex, get_opposite_color(color));
+                                        // server_print("is_mate: %b", mate);
+                                        if(mate) on_mate(boardIndex, get_opposite_color(color));
                                     }
 
                                 } else {
@@ -172,6 +182,11 @@ public fwd_player_prethink(id)
                     delete_promotion_menu(boardIndex);
                     g_bPromotionMenuOpen[boardIndex] = false;
                     render_pieces(boardIndex);
+
+                    new color = g_PiecesList[boardIndex][pawnId][Color];
+                    new mate = is_mate(boardIndex, get_opposite_color(color));
+                    if(mate) on_mate(boardIndex, get_opposite_color(color));
+                    // server_print("is_mate(after promotion): %b", mate);
                 }
 
             }
@@ -191,6 +206,12 @@ public fwd_player_prethink(id)
     }
 
 } 
+
+on_mate(boardIndex, color_in_mate) {
+
+    client_print_color(0, print_team_red, "^4[CHESS] ^1Color(^3%d^1) ^4wins^1!", !color_in_mate);
+    delete_board(boardIndex);
+}
 
 // start_new_game() {
 //     new boardIndex = init_new_board();
@@ -361,7 +382,8 @@ public you_challenged_menu_handler( id, menu, item )
  }
 
  challenge_accepted(playerOne, playerTwo) {
-    if(get_uninitialized_board() == -1) {
+    new boardIndex = init_new_board();
+    if(boardIndex == -1) {
         client_print(playerOne, print_chat, "game aborted: max boards limit reached");
         client_print(playerTwo, print_chat, "game aborted: max boards limit reached");
         return;
@@ -371,7 +393,6 @@ public you_challenged_menu_handler( id, menu, item )
     client_print(playerTwo, print_chat, "A game of chess against: %n", playerOne);
     
     g_iGlowEnt = create_glow();
-    new boardIndex = init_new_board();
     // server_print("board created %d", boardIndex);
     g_iPlacingBoard[playerTwo] = boardIndex;
     g_iBoardPlayers[boardIndex][playerOne] = playerOne;
@@ -409,7 +430,6 @@ public cmd_chess_admin_menu(id, level, cid)
     return PLUGIN_HANDLED;
 } 
 
-// TODO: manage boards?
 show_admin_menu(id)
 {
     new menu = menu_create("Chess Admin Menu", "chess_admin_menu_handler");
