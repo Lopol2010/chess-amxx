@@ -6,7 +6,7 @@
 #include <chess>
 #include <chess_history.inl>
 
-#define TURN_CHECK 0
+#define TURN_CHECK 1
 
 #define set_list(%1,%2,%3) g_PiecesList[boardIndex][%1][%2] = %3
 #define set_matrix(%1,%2,%3) g_PiecesMatrix[boardIndex][%1][%2] = %3

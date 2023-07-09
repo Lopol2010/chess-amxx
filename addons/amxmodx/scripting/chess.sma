@@ -1,6 +1,5 @@
 // TODO: threefold repetition
 // TODO: 50 move rule
-// TODO: assign color to players
 #include <amxmodx>
 #include <amxmisc>
 #include <fakemeta>
@@ -19,6 +18,7 @@
 // these for debug
 #pragma semicolon 1
 
+new g_iPlayerColor[MAX_BOARDS][33];
 new g_iSelectedPiece[MAX_BOARDS][33];
 new g_iBoardPlayers[MAX_BOARDS][33];
 new g_iPlacingBoard[33] = { -1, ... };
@@ -67,12 +67,8 @@ public client_disconnected(id)
     }
 
     for(new i = 0; i < MAX_BOARDS; i++) {
-        if(g_iBoardPlayers[i][id] == id || g_iBoardPlayers[i][id] == id) {
+        if(g_iBoardPlayers[i][id] != 0) {
             delete_board(i);
-            g_iBoardPlayers[i][id] = -1;
-            g_iBoardPlayers[i][id] = -1;
-            g_iSelectedPiece[i][id] = InvalidID;
-            g_iSelectedPiece[i][id] = InvalidID;
         }
     }
 
@@ -95,6 +91,12 @@ public delete_board(i) {
 
     g_iBoardEntity[i] = 0;
     g_iPromotionMenuEntities[i] = {0, 0, 0, 0};
+
+    for(new j = 0; j < 33; j++) {
+        g_iBoardPlayers[i][j] = 0;
+        g_iSelectedPiece[i][j] = InvalidID;
+        g_iPlayerColor[i][j] = 0;
+    }
 }
 
 // public FwdCmdStart(id, uc_handle)
@@ -109,7 +111,7 @@ public fwd_player_prethink(id)
     // start with loop + traceline in order to prevent attack animation 
     // otherwise when doing move in chess you would see unfinished attacks
     for(new i = 0; i < MAX_BOARDS; i++) {
-        if(g_iBoardPlayers[i][id] == id) {
+        if(g_iBoardPlayers[i][id] != 0) {
 
             new Float:origin[3];
             new x, y, boardIndex, promotion_menu_item_entity, new_rank;
@@ -135,33 +137,40 @@ public fwd_player_prethink(id)
                         if(!g_bPromotionMenuOpen[boardIndex]) {
                             // server_print("g_iSelectedPiece[boardIndex][id] %d", g_iSelectedPiece[boardIndex][id]);
                             if(g_iSelectedPiece[boardIndex][id] != InvalidID) {
-                                new px, py;
-                                px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Row];
-                                py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Column];
-                                // server_print("move: %d %d -> %d %d", px, py, x, y);
-                                if(do_move(boardIndex, px, py, x, y)) {
-                                    // server_print("move success");
-                                    render_pieces(boardIndex);
-                                    new pawnIndex;
-                                    if(is_wait_for_promote_choice(boardIndex, pawnIndex)) {
-                                        // server_print("is_wait_for_promote_choice: true, pawnIndex: %d", pawnIndex);
-                                        if(!g_bPromotionMenuOpen[boardIndex]) {
-                                            // server_print("g_bPromotionMenuOpen: false");
-                                            create_promotion_menu(boardIndex, pawnIndex);
-                                            g_bPromotionMenuOpen[boardIndex] = true;
-                                        }
-                                    } else {
-                                        new color = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Color];
-                                        new mate = is_mate(boardIndex, get_opposite_color(color));
-                                        // server_print("is_mate: %b", mate);
-                                        if(mate) on_mate(boardIndex, get_opposite_color(color));
-                                    }
+                                if(g_iPlayerColor[boardIndex][id] == g_iTurn[boardIndex] 
+                                    || g_iBoardPlayers[boardIndex][id] == id // play against self
+                                ) {
 
+                                    new px, py;
+                                    px = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Row];
+                                    py = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Column];
+                                    // server_print("move: %d %d -> %d %d", px, py, x, y);
+                                    if(do_move(boardIndex, px, py, x, y)) {
+                                        // server_print("move success");
+                                        render_pieces(boardIndex);
+                                        new pawnIndex;
+                                        if(is_wait_for_promote_choice(boardIndex, pawnIndex)) {
+                                            // server_print("is_wait_for_promote_choice: true, pawnIndex: %d", pawnIndex);
+                                            if(!g_bPromotionMenuOpen[boardIndex]) {
+                                                // server_print("g_bPromotionMenuOpen: false");
+                                                create_promotion_menu(boardIndex, pawnIndex);
+                                                g_bPromotionMenuOpen[boardIndex] = true;
+                                            }
+                                        } else {
+                                            new color = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Color];
+                                            new mate = is_mate(boardIndex, get_opposite_color(color));
+                                            // server_print("is_mate: %b", mate);
+                                            if(mate) on_mate(boardIndex, get_opposite_color(color));
+                                        }
+
+                                    } else {
+                                        // server_print("move failed");
+                                        client_print(id, print_chat, "move failed!");
+                                    }
+                                    g_iSelectedPiece[boardIndex][id] = InvalidID;
                                 } else {
-                                    // server_print("move failed");
-                                    client_print(id, print_chat, "move failed!");
+                                    client_print(id, print_chat, "not your turn!");
                                 }
-                                g_iSelectedPiece[boardIndex][id] = InvalidID;
                             } else {
                                 g_iSelectedPiece[boardIndex][id] = g_PiecesMatrix[boardIndex][x][y];
                             }
@@ -233,7 +242,7 @@ public cmd_chess(id, level, cid)
 
 show_chess_menu(id)
 {
-    new menu = menu_create("Chess", "chess_menu_handler");
+    new menu = menu_create("Chess [0.0.1-alpha]", "chess_menu_handler");
 
     menu_additem(menu, "Choose opponent", "1");
     // menu_addblank2(menu);
@@ -263,7 +272,10 @@ public chess_menu_handler(id, menu, item)
 
     switch(index) {
         case 1: {
-            choose_opponent_menu(id);
+            if(g_iPlacingBoard[id] == -1) 
+                choose_opponent_menu(id);
+            else
+                client_print(id, print_chat, "you should place current board");
         }
     }
 
@@ -273,7 +285,7 @@ public chess_menu_handler(id, menu, item)
 public choose_opponent_menu( id )
  {
     //Create a variable to hold the menu
-    new menu = menu_create( "\rChoose player to request a game!:", "choose_opponent_menu_handler" );
+    new menu = menu_create( "Choose player to request a game!:", "choose_opponent_menu_handler" );
 
     //We will need to create some variables so we can loop through all the players
     new players[32], pnum, tempid;
@@ -342,7 +354,7 @@ you_challenged_menu(id, challenger)
     get_user_name( challenger, szChallengerName, charsmax( szChallengerName ) );
     formatex( szChallengerIndex, charsmax( szChallengerIndex ), "%d", challenger );
 
-    new menu = menu_create(fmt("You are challenged to play chess by: ^r%s", szChallengerName), "you_challenged_menu_handler");
+    new menu = menu_create(fmt("You are invited to play chess by: \r%s", szChallengerName), "you_challenged_menu_handler");
 
     menu_additem(menu, "Accept", szChallengerIndex);
     menu_additem(menu, "Decline");
@@ -395,8 +407,12 @@ public you_challenged_menu_handler( id, menu, item )
     g_iGlowEnt = create_glow();
     // server_print("board created %d", boardIndex);
     g_iPlacingBoard[playerTwo] = boardIndex;
-    g_iBoardPlayers[boardIndex][playerOne] = playerOne;
-    g_iBoardPlayers[boardIndex][playerTwo] = playerTwo;
+    g_iBoardPlayers[boardIndex][playerOne] = playerTwo;
+    g_iBoardPlayers[boardIndex][playerTwo] = playerOne;
+
+    g_iPlayerColor[boardIndex][playerOne] = random_num(0, 1);
+    g_iPlayerColor[boardIndex][playerTwo] = !g_iPlayerColor[boardIndex][playerOne];
+    // server_print("%d", g_iPlayerColor[boardIndex][playerOne]);
 
     // create_board_entities_dbg(g_iPlacingBoard[playerTwo]);
     new ent = create_board_entity(Float:{0.0, 0.0, 0.0}, boardIndex);
@@ -410,8 +426,6 @@ public cmd_delete_all(id, level, cid)
 
     for(new i = 0; i < MAX_BOARDS; i++) {
         if(!g_Boards[i][IsInitialized]) continue;
-        g_iBoardPlayers[i][id] = -1;
-        g_iBoardPlayers[i][id] = -1;
         delete_board(i);
     }
 
