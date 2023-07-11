@@ -27,8 +27,8 @@ enum _:PieceID {
 };
 
 enum _:PieceStatus {
+  Captured,
   Battle,
-  Captured
 };
 
 enum _:PieceColor {
@@ -74,5 +74,6 @@ enum _:MoveStruct {
   // captured piece rank OR pawn's new rank after promotion
   CapturedRank,
   IsFirstMove,
+  HalfmoveClock,
   MoveStructSize
 }

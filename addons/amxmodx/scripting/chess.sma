@@ -1,5 +1,7 @@
 // TODO: threefold repetition
-// TODO: 50 move rule
+// TODO: draw
+// TODO: in menu add buttons for draw and surrender
+// TODO: 
 #include <amxmodx>
 #include <amxmisc>
 #include <fakemeta>
@@ -23,6 +25,7 @@ new g_iSelectedPiece[MAX_BOARDS][33];
 new g_iBoardPlayers[MAX_BOARDS][33];
 new g_iPlacingBoard[33] = { -1, ... };
 new g_bPromotionMenuOpen[MAX_BOARDS];
+new g_iGamesNum;
 
 public plugin_init()
 {
@@ -59,6 +62,27 @@ public plugin_cfg()
 {
 }
 
+// public client_connect(id) {
+//     // TEST SETUP
+//     new boardIndex = init_new_board_test();
+//     new ent = create_board_entity(Float:{0.0, 0.0, 0.0}, boardIndex);
+//     set_pev(ent, pev_solid, SOLID_BBOX);
+
+//     g_iGlowEnt = create_glow();
+//     // server_print("board created %d", boardIndex);
+//     // g_iPlacingBoard[id] = boardIndex;
+//     g_iBoardPlayers[boardIndex][id] = id;
+//     g_iBoardPlayers[boardIndex][id] = id;
+
+//     g_iPlayerColor[boardIndex][id] = 0;
+//     // g_iPlayerColor[boardIndex][id] = !g_iPlayerColor[boardIndex][playerOne];
+
+//     g_iGamesNum ++;
+//     create_board_entities_dbg(boardIndex);
+//     render_pieces(boardIndex);
+//     print_board(boardIndex);
+// }
+
 public client_disconnected(id)
 {
     if(g_iPlacingBoard[id] != -1) {
@@ -88,6 +112,7 @@ public delete_board(i) {
     }
     delete_promotion_menu(i);
     g_bPromotionMenuOpen[i] = false;
+    g_iGamesNum --;
 
     g_iBoardEntity[i] = 0;
     g_iPromotionMenuEntities[i] = {0, 0, 0, 0};
@@ -126,6 +151,7 @@ public fwd_player_prethink(id)
                         if((Button & IN_ATTACK) && !(OldButtons & IN_ATTACK)) {
                             set_pev(boardEnt, pev_solid, SOLID_BBOX);
                             create_board_entities_dbg(g_iPlacingBoard[id]);
+                            g_iGamesNum ++;
                             g_iPlacingBoard[id] = -1;
                         }
                     }
@@ -148,6 +174,11 @@ public fwd_player_prethink(id)
                                     if(do_move(boardIndex, px, py, x, y)) {
                                         // server_print("move success");
                                         render_pieces(boardIndex);
+
+                                        if(is_fifty_move_rule_draw(boardIndex)) {
+                                            on_draw(boardIndex, id);
+                                        }
+
                                         new pawnIndex;
                                         if(is_wait_for_promote_choice(boardIndex, pawnIndex)) {
                                             // server_print("is_wait_for_promote_choice: true, pawnIndex: %d", pawnIndex);
@@ -157,10 +188,16 @@ public fwd_player_prethink(id)
                                                 g_bPromotionMenuOpen[boardIndex] = true;
                                             }
                                         } else {
-                                            new color = g_PiecesList[boardIndex][g_iSelectedPiece[boardIndex][id]][Color];
-                                            new mate = is_mate(boardIndex, get_opposite_color(color));
-                                            // server_print("is_mate: %b", mate);
-                                            if(mate) on_mate(boardIndex, get_opposite_color(color));
+                                            new color = get_at(x, y, Color);
+                                            new is_check;
+                                            new mate = is_mate(boardIndex, get_opposite_color(color), is_check);
+                                            // server_print("is_mate: %b, is_check %b", mate, is_check);
+                                            // server_print("color moved %d", color);
+                                            if(mate) on_mate(boardIndex, id, get_opposite_color(color));
+                                            if(!is_check && is_stalemate(boardIndex, get_opposite_color(color))
+                                            || count_position_for_threefold_rule(boardIndex) == 3) 
+                                                on_draw(boardIndex, id);
+
                                         }
 
                                     } else {
@@ -192,9 +229,15 @@ public fwd_player_prethink(id)
                     g_bPromotionMenuOpen[boardIndex] = false;
                     render_pieces(boardIndex);
 
-                    new color = g_PiecesList[boardIndex][pawnId][Color];
-                    new mate = is_mate(boardIndex, get_opposite_color(color));
-                    if(mate) on_mate(boardIndex, get_opposite_color(color));
+                    new color = get(pawnId, Color);
+                    new is_check;
+                    new mate = is_mate(boardIndex, get_opposite_color(color), is_check);
+                    if(mate) on_mate(boardIndex, id, get_opposite_color(color));
+                    if(!is_check && is_stalemate(boardIndex, get_opposite_color(color))
+                    || count_position_for_threefold_rule(boardIndex) == 3) 
+                        on_draw(boardIndex, id);
+
+                    
                     // server_print("is_mate(after promotion): %b", mate);
                 }
 
@@ -216,9 +259,13 @@ public fwd_player_prethink(id)
 
 } 
 
-on_mate(boardIndex, color_in_mate) {
+on_mate(boardIndex, winnerId, color_in_mate) {
+    client_print_color(0, print_team_red, "[^4CHESS^1] Winner ^4%n ^1: Loser ^3%n", winnerId, g_iBoardPlayers[winnerId]);
+    delete_board(boardIndex);
+}
 
-    client_print_color(0, print_team_red, "^4[CHESS] ^1Color(^3%d^1) ^4wins^1!", !color_in_mate);
+on_draw(boardIndex, lastMovedPlayerId) {
+    client_print_color(0, print_team_grey, "[^4CHESS^1] Draw: ^3%n^1 vs. ^3%n", lastMovedPlayerId, g_iBoardPlayers[lastMovedPlayerId]);
     delete_board(boardIndex);
 }
 
@@ -246,7 +293,7 @@ show_chess_menu(id)
 
     menu_additem(menu, "Choose opponent", "1");
     // menu_addblank2(menu);
-    // menu_additem(menu, "Create board", "2");
+    menu_additem(menu, fmt("Games [\r%d\w]", g_iGamesNum), "2");
     // menu_additem(menu, "Board setting #2", "3");
     // menu_additem(menu, "Board setting #3", "4");
 
@@ -277,10 +324,166 @@ public chess_menu_handler(id, menu, item)
             else
                 client_print(id, print_chat, "you should place current board");
         }
+        case 2: {
+            if(g_iGamesNum > 0)
+                show_games_menu(id);
+        }
+    
     }
 
     return PLUGIN_HANDLED;
 }
+
+show_games_menu(id)
+{
+    new menu = menu_create("Current chess games", "games_menu_handler");
+
+    new szItem[100], itemInfo[3], playerNum;
+    for(new i = 0; i < MAX_BOARDS; i++) {
+        // if(g_Boards)
+        for(new j = 1; j < 33; j++) {
+            if(g_iBoardPlayers[i][j] > 0) {
+                if(playerNum == 0) {
+                    strcat(szItem, fmt("%n", g_iBoardPlayers[i][j]), sizeof szItem);
+                } else {
+                    strcat(szItem, fmt(" vs. %n", g_iBoardPlayers[i][j]), sizeof szItem);
+                }
+                itemInfo[playerNum] = j;
+                playerNum ++;
+            }
+        }
+
+        if(playerNum == 1) {
+            strcat(szItem, fmt(" plays alone"), sizeof szItem);
+            itemInfo[1] = itemInfo[0];
+        }
+
+        if(playerNum > 0) {
+            itemInfo[2] = i;
+            menu_additem(menu, szItem, itemInfo);
+        }
+        playerNum = 0;
+        arrayset(szItem, 0, sizeof szItem);
+        arrayset(itemInfo, 0, sizeof itemInfo);
+    }
+
+    menu_setprop(menu, MPROP_PERPAGE, 0);
+
+    menu_display(id, menu);
+
+    return PLUGIN_HANDLED;
+}
+
+public games_menu_handler( id, menu, item )
+ {
+    //Do a check to see if they exited because menu_item_getinfo ( see below ) will give an error if the item is MENU_EXIT
+    if ( item == MENU_EXIT )
+    {
+        menu_destroy( menu );
+        return PLUGIN_HANDLED;
+    }
+
+
+    new szData[3], szName[64];
+    new _access, item_callback;
+
+    menu_item_getinfo( menu, item, _access, szData,charsmax( szData ), szName,charsmax( szName ), item_callback );
+
+    show_player_menu(id, szData);
+
+    menu_destroy( menu );
+    return PLUGIN_HANDLED;
+ }
+
+show_player_menu(id, szData[3])
+{
+    new boardIndex = szData[2];
+    new menu = menu_create(fmt("Chess player menu [Board %d]", boardIndex), "player_menu_handler");
+
+
+    menu_additem(menu, "-");
+    menu_additem(menu, "-");
+
+    menu_additem(menu, "Draw", szData);
+    menu_additem(menu, "Surrender", szData);
+
+    menu_setprop(menu, MPROP_PERPAGE, 0);
+
+    menu_display(id, menu);
+
+    return PLUGIN_HANDLED;
+}
+
+public player_menu_handler( id, menu, item )
+ {
+    //Do a check to see if they exited because menu_item_getinfo ( see below ) will give an error if the item is MENU_EXIT
+    if ( item == MENU_EXIT )
+    {
+        menu_destroy( menu );
+        return PLUGIN_HANDLED;
+    }
+
+
+    new szData[3], szName[64];
+    new _access, item_callback;
+
+    menu_item_getinfo( menu, item, _access, szData,charsmax( szData ), szName,charsmax( szName ), item_callback );
+// server_print("item %d", item);
+    if(id == szData[0] || id == szData[1]) {
+        if(item == 2) { // draw
+            // should ask other player
+            new playerId = id != szData[0] ? szData[0] : szData[1];
+            show_ask_for_draw_menu(playerId, szData);
+        } else if(item == 3) { // surrender
+            new winnerId = id == szData[0] ? szData[0] : szData[1];
+            on_mate(szData[2], winnerId, get_opposite_color(g_iPlayerColor[szData[2]][winnerId]));
+        }
+    }
+
+    menu_destroy( menu );
+    return PLUGIN_HANDLED;
+ }
+
+ show_ask_for_draw_menu(id, szData[3])
+{
+    new menu = menu_create(fmt("Opponent requested DRAW:"), "ask_for_draw_menu_handler");
+
+
+    menu_additem(menu, "-");
+    menu_additem(menu, "-");
+    menu_additem(menu, "Accept");
+    menu_additem(menu, "Decline");
+
+    menu_setprop(menu, MPROP_PERPAGE, 0);
+
+    menu_display(id, menu);
+
+    return PLUGIN_HANDLED;
+}
+
+public ask_for_draw_menu_handler( id, menu, item )
+ {
+    //Do a check to see if they exited because menu_item_getinfo ( see below ) will give an error if the item is MENU_EXIT
+    if ( item == MENU_EXIT )
+    {
+        menu_destroy( menu );
+        return PLUGIN_HANDLED;
+    }
+
+    new szData[3], szName[64];
+    new _access, item_callback;
+
+    menu_item_getinfo( menu, item, _access, szData,charsmax( szData ), szName,charsmax( szName ), item_callback );
+
+    if(item == 2) { // draw
+        on_draw(szData[2], id);
+    } else if(item == 3) { // surrender
+        // TODO: notify draw is declined
+    }
+
+    menu_destroy( menu );
+    return PLUGIN_HANDLED;
+ }
 
 public choose_opponent_menu( id )
  {
