@@ -1,11 +1,12 @@
 // TODO: draw (add cases such as two kings left on the board)
-// TODO: in menu add buttons for draw and surrender (not finished)
-// TODO: add traceline delay 
+// TODO: in menu add buttons for draw and surrender (not finished?)
+// TODO: hide boards with 'addtofullpack_manager' for those who not playing on any board?
+
 #include <amxmodx>
 #include <amxmisc>
 #include <fakemeta>
 #include <engine>
-#include <xs>
+#include <xs> 
 #include <chess>
 #include <chess_logic.inl>
 #include <chess_3d.inl>
@@ -16,12 +17,15 @@
 #define AUTHOR "Lopol2010"
 #define VERSION "0.0.1"
 
+#define TRACELINE_DELAY 0.1
+
 // these for debug
 #pragma semicolon 1
 
 new g_iPlayerColor[MAX_BOARDS][33];
 new g_iSelectedPiece[MAX_BOARDS][33];
 new g_iBoardPlayers[MAX_BOARDS][33];
+new Float:g_fLastTraceline[MAX_BOARDS][33];
 new g_iPlacingBoard[33] = { -1, ... };
 new g_bPromotionMenuOpen[MAX_BOARDS];
 new g_iGamesNum;
@@ -136,6 +140,11 @@ public fwd_player_prethink(id)
     // otherwise you would see unfinished attacks (glitchy animations)
     for(new i = 0; i < MAX_BOARDS; i++) {
         if(g_iBoardPlayers[i][id] != 0) {
+
+            if(get_gametime() - g_fLastTraceline[i][id] >= TRACELINE_DELAY) {
+                g_fLastTraceline[i][id] = get_gametime();
+                break;
+            }
 
             new Float:origin[3];
             new x, y, boardIndex, promotion_menu_item_entity, new_rank;
@@ -329,7 +338,6 @@ public chess_menu_handler(id, menu, item)
             if(g_iGamesNum > 0)
                 show_games_menu(id);
         }
-    
     }
 
     return PLUGIN_HANDLED;
