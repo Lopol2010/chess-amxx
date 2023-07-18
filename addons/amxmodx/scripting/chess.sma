@@ -1,7 +1,6 @@
-// TODO: threefold repetition
-// TODO: draw
-// TODO: in menu add buttons for draw and surrender
-// TODO: 
+// TODO: draw (add cases such as two kings left on the board)
+// TODO: in menu add buttons for draw and surrender (not finished)
+// TODO: add traceline delay 
 #include <amxmodx>
 #include <amxmisc>
 #include <fakemeta>
@@ -62,26 +61,26 @@ public plugin_cfg()
 {
 }
 
-// public client_connect(id) {
-//     // TEST SETUP
-//     new boardIndex = init_new_board_test();
-//     new ent = create_board_entity(Float:{0.0, 0.0, 0.0}, boardIndex);
-//     set_pev(ent, pev_solid, SOLID_BBOX);
+public client_connect(id) {
+    // TEST SETUP
+    new boardIndex = init_new_board_test();
+    new ent = create_board_entity(Float:{0.0, 0.0, 0.0}, boardIndex);
+    // set_pev(ent, pev_solid, SOLID_BBOX);
 
-//     g_iGlowEnt = create_glow();
-//     // server_print("board created %d", boardIndex);
-//     // g_iPlacingBoard[id] = boardIndex;
-//     g_iBoardPlayers[boardIndex][id] = id;
-//     g_iBoardPlayers[boardIndex][id] = id;
+    g_iGlowEnt = create_glow();
+    // server_print("board created %d", boardIndex);
+    // g_iPlacingBoard[id] = boardIndex;
+    g_iBoardPlayers[boardIndex][id] = id;
+    g_iBoardPlayers[boardIndex][id] = id;
 
-//     g_iPlayerColor[boardIndex][id] = 0;
-//     // g_iPlayerColor[boardIndex][id] = !g_iPlayerColor[boardIndex][playerOne];
+    g_iPlayerColor[boardIndex][id] = 0;
+    // g_iPlayerColor[boardIndex][id] = !g_iPlayerColor[boardIndex][playerOne];
 
-//     g_iGamesNum ++;
-//     create_board_entities_dbg(boardIndex);
-//     render_pieces(boardIndex);
-//     print_board(boardIndex);
-// }
+    g_iGamesNum ++;
+    create_board_entities_dbg(boardIndex);
+    render_pieces(boardIndex);
+    // print_board(boardIndex);
+}
 
 public client_disconnected(id)
 {
@@ -134,13 +133,15 @@ public fwd_player_prethink(id)
     OldButtons = pev(id, pev_oldbuttons);
  
     // start with loop + traceline in order to prevent attack animation 
-    // otherwise when doing move in chess you would see unfinished attacks
+    // otherwise you would see unfinished attacks (glitchy animations)
     for(new i = 0; i < MAX_BOARDS; i++) {
         if(g_iBoardPlayers[i][id] != 0) {
 
             new Float:origin[3];
             new x, y, boardIndex, promotion_menu_item_entity, new_rank;
-            switch(Traceline(id, g_iGlowEnt, origin, x, y, boardIndex, promotion_menu_item_entity, new_rank)) {
+            new result = Traceline(id, g_iGlowEnt, origin, x, y, boardIndex, g_iPlacingBoard[id] == -1, promotion_menu_item_entity, new_rank);
+            
+            switch(result) {
 
                 case TR_RESULT_NONE: { 
                     // server_print("traceline result none!"); 
@@ -149,7 +150,7 @@ public fwd_player_prethink(id)
                         new boardEnt = g_iBoardEntity[g_iPlacingBoard[id]];
                         set_pev(boardEnt, pev_origin, origin);
                         if((Button & IN_ATTACK) && !(OldButtons & IN_ATTACK)) {
-                            set_pev(boardEnt, pev_solid, SOLID_BBOX);
+                            // set_pev(boardEnt, pev_solid, SOLID_BBOX);
                             create_board_entities_dbg(g_iPlacingBoard[id]);
                             g_iGamesNum ++;
                             g_iPlacingBoard[id] = -1;

@@ -13,6 +13,7 @@ new Float:BOARD_SIZE[3] = { 64.00, 64.00, 4.4 };
 new Float:SQUARE_SIZE = 8.00;
 
 new Float:g_fBoardCorner[MAX_BOARDS][3];
+
 new g_iBoardEntity[MAX_BOARDS];
 new g_iPieceEntities[MAX_BOARDS][BOARD_ROWS][BOARD_COLUMNS];
 new g_iPromotionMenuEntities[MAX_BOARDS][4];
@@ -64,7 +65,7 @@ create_promotion_menu_item_entity(const Float:origin[3])
     set_pev(ent, pev_origin, origin);
     set_rendering(ent, kRenderFxNone, 155, 111, 0, kRenderNormal, 255);
 
-    set_pev(ent, pev_solid, SOLID_BBOX);
+    // set_pev(ent, pev_solid, SOLID_BBOX);
     
     set_pev(ent, pev_movetype, MOVETYPE_NOCLIP);
     entity_set_size(ent, Float:{ -3.0, -3.0, 0.0 }, Float:{ 3.0, 3.0, 6.0 });
@@ -135,7 +136,7 @@ _draw_line(color[3], Float:from_x, Float:from_y, Float:z1, Float:to_x, Float:to_
     // draw_line(start, stop, color, g_iSpriteLine);
 }
 
-TracelineResult:Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex, &promotion_menu_item_entity, &new_rank)
+TracelineResult:Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex, use_to_solid, &promotion_menu_item_entity, &new_rank)
 {
     new Float:fVec[3];
     pev(id, pev_v_angle, fVec);
@@ -165,6 +166,9 @@ TracelineResult:Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex, &promotion
     new iTraceHandle = create_tr2(); // trace handle
     new iMaxTraces = 3, iCurTraceNum = 0;
 
+    if(use_to_solid)
+        boards_to_SOLID_BBOX();
+
     while(engfunc(EngFunc_TraceLine, start, end, IGNORE_MONSTERS | IGNORE_MISSILE, iEntToIgnore, iTraceHandle)) // will always return 1, see engfunc.cpp
     {
 
@@ -185,6 +189,9 @@ TracelineResult:Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex, &promotion
         else
             iCurTraceNum ++;
     }
+    
+    if(use_to_solid)
+        boards_to_SOLID_NOT();
 
     get_tr2(iTraceHandle, TR_vecEndPos, hit); // out of the loop, this will get the last position of the last traceline. you can use a beam effect or something if you want
 
@@ -193,11 +200,13 @@ TracelineResult:Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex, &promotion
     if(is_valid_ent(ent)) {
         for(new i = 0; i < MAX_BOARDS && resultType == TR_RESULT_NONE; i ++) {
             if(ent == g_iBoardEntity[i]) {
+                // did we hit board?
                 boardIndex = pev(ent, PEV_BOARD_INDEX);
                 resultType = TR_RESULT_BOARD;
                 // server_print("ent %d %d", ent, g_iBoardEntity[i]);
             } else {
                 for(new j = 0; j < 4; j ++) {
+                    // did we hit promotion menu item? then get board id from it
                     new menuItemEnt = g_iPromotionMenuEntities[i][j];
                     if(ent == menuItemEnt /* && is_valid_ent(menuItemEnt) */) {
                         promotion_menu_item_entity = menuItemEnt;
@@ -209,6 +218,7 @@ TracelineResult:Traceline(id, ent, Float:hit[3], &x, &y, &boardIndex, &promotion
             }
         }
 
+        // did we hit piece? get board id from it
         for(new i = 0; i < MAX_BOARDS && resultType == TR_RESULT_NONE; i ++) {
             for(new j = 0; j < BOARD_ROWS && resultType == TR_RESULT_NONE; j++) {
                 for(new l = 0; l < BOARD_COLUMNS && resultType == TR_RESULT_NONE; l++) {
@@ -376,7 +386,7 @@ create_promotion_menu(boardIndex, pawnIndex) {
         g_iPromotionMenuEntities[boardIndex][x] = menuItemEnt;
 
         set_pev(menuItemEnt, PEV_BOARD_INDEX, boardIndex);
-        set_pev(menuItemEnt, pev_solid, SOLID_BBOX);
+        // set_pev(menuItemEnt, pev_solid, SOLID_BBOX);
         set_pev(menuItemEnt, PEV_PIECE_ID, piece[Id]);
         // set_pev(menuItemEnt, pev_scale, 1.0);
 
@@ -423,4 +433,55 @@ rank_to_model_id(rank) {
         case King: body_id = 5;
     }
     return body_id;
+}
+
+boards_to_SOLID_BBOX() {
+    for(new boardIndex = 0; boardIndex < MAX_BOARDS; boardIndex ++) {
+        if(is_valid_ent(g_iBoardEntity[boardIndex])) {
+            set_pev(g_iBoardEntity[boardIndex], pev_solid, SOLID_BBOX);
+            RelinkEntity(g_iBoardEntity[boardIndex]);
+        }
+
+        for(new x = 0; x < 4; x++) {
+            if(is_valid_ent(g_iPromotionMenuEntities[boardIndex][x])) {
+                set_pev(g_iPromotionMenuEntities[boardIndex][x], pev_solid, SOLID_BBOX);
+                RelinkEntity(g_iPromotionMenuEntities[boardIndex][x]);
+            }
+        }
+
+        for(new x = 0; x < BOARD_COLUMNS; x++) {
+            for(new y = 0; y < BOARD_ROWS; y++) {
+                if(is_valid_ent(g_iPieceEntities[boardIndex][x][y])) {
+                    set_pev(g_iPieceEntities[boardIndex][x][y], pev_solid, SOLID_BBOX);
+                    RelinkEntity(g_iPieceEntities[boardIndex][x][y]);
+                }
+            }
+        }
+    }
+}
+
+boards_to_SOLID_NOT() {
+    for(new boardIndex = 0; boardIndex < MAX_BOARDS; boardIndex ++) {
+        if(is_valid_ent(g_iBoardEntity[boardIndex]))
+            set_pev(g_iBoardEntity[boardIndex], pev_solid, SOLID_NOT);
+
+        for(new x = 0; x < 4; x++) {
+            if(is_valid_ent(g_iPromotionMenuEntities[boardIndex][x]))
+                set_pev(g_iPromotionMenuEntities[boardIndex][x], pev_solid, SOLID_NOT);
+        }
+
+        for(new x = 0; x < BOARD_COLUMNS; x++) {
+            for(new y = 0; y < BOARD_ROWS; y++) {
+                if(is_valid_ent(g_iPieceEntities[boardIndex][x][y]))
+                    set_pev(g_iPieceEntities[boardIndex][x][y], pev_solid, SOLID_NOT);
+            }
+        }
+    }
+}
+
+RelinkEntity(ent) {
+    static Float:origin[3];
+    entity_get_vector(ent, EV_VEC_origin, origin);
+    // Also calls the SetSize, so it is also recalcing size
+    entity_set_origin(ent, origin);
 }
