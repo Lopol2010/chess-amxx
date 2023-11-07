@@ -66,7 +66,11 @@ public plugin_cfg()
 }
 
 public client_connect(id) {
-    // TEST SETUP
+    // TEST_SETUP(id);
+}
+
+public TEST_SETUP(id) {
+
     new boardIndex = init_new_board_test();
     new ent = create_board_entity(Float:{0.0, 0.0, 0.0}, boardIndex);
     // set_pev(ent, pev_solid, SOLID_BBOX);
